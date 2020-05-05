@@ -6,6 +6,7 @@ namespace Quantum.Kata.GraphColoring {
     open Microsoft.Quantum.Diagnostics;
     open Microsoft.Quantum.Intrinsic;
     open Microsoft.Quantum.Canon;
+    open Microsoft.Quantum.Arrays;
 
     //////////////////////////////////////////////////////////////////
     // Welcome!
@@ -89,6 +90,36 @@ namespace Quantum.Kata.GraphColoring {
     }
 
 
+   // Task 1.6. N-bit color equality oracle (no extra qubits)
+    // Inputs:
+    //      1) an array of 2 qubits in an arbitrary state |c₀⟩ representing the first color,
+    //      1) an array of 2 qubits in an arbitrary state |c₁⟩ representing the second color,
+    //      3) a qubit in an arbitrary state |y⟩ (target qubit).
+    // Goal: Transform state |c₀⟩|c₁⟩|y⟩ into state |c₀⟩|c₁⟩|y ⊕ f(c₀, c₁)⟩ (⊕ is addition modulo 2),
+    //       where f(x) = 1 if c₀ and c₁ are in the same state, and 0 otherwise.
+    //       Leave the query register in the same state it started in.
+    // In this task you are allowed to allocate extra qubits.
+    operation ColorEqualityOracleOr_Nbit (c0 : Qubit[], c1 : Qubit[], targets : Qubit[]) : Unit is Adj+Ctl {
+        for ((q0, q1) in Zip(c0, c1)) {
+            // compute XOR of q0 and q1 in place (storing it in q1)
+            CNOT(q0, q1);
+        }
+
+        // if all XORs are 0, the bit strings are equal
+        for (target in targets)
+        {
+            (ControlledOnInt(0, X))(c1, target);
+
+            // Flip target to get negation
+            X(target);
+        }
+        
+        // uncompute
+        for ((q0, q1) in Zip(c0, c1)) {
+            CNOT(q0, q1);
+        }
+    }
+
 
     //////////////////////////////////////////////////////////////////
     // Part II. Vertex coloring problem
@@ -147,5 +178,107 @@ namespace Quantum.Kata.GraphColoring {
     operation GroversAlgorithm (V : Int, oracle : ((Qubit[], Qubit) => Unit is Adj)) : Int[] {
         // ...
         return new Int[V];
+    }
+
+    //////////////////////////////////////////////////////////////////
+    // Part III. Weak coloring problem
+    //////////////////////////////////////////////////////////////////
+
+    // Task 2.1. Classical verification of weak coloring
+    // Inputs:
+    //      1) The number of vertices in the graph V (V ≤ 6).
+    //      2) An array of E tuples of integers, representing the edges of the graph (E ≤ 12).
+    //         Each tuple gives the indices of the start and the end vertices of the edge.
+    //         The vertices are indexed 0 through V - 1.
+    //      3) An array of V integers, representing the vertex coloring of the graph.
+    //         i-th element of the array is the color of the vertex number i.
+    // Output: true if the given vertex coloring is valid 
+    //         (i.e., no pair of vertices connected by an edge have the same color),
+    //         and false otherwise.
+    // Example: Graph 0 -- 1 -- 2 would have V = 3 and edges = [(0, 1), (1, 2)].
+    //         Some of the valid colorings for it would be [0, 1, 0] and [-1, 5, 18].
+    function IsWeakColoringValid (V : Int, edges: (Int, Int)[], colors: Int[]) : Bool {
+        // The following lines enforce the constraints on the input that you are given.
+        // You don't need to modify them. Feel free to remove them, this won't cause your code to fail.
+        mutable validColoring = new Bool[V];
+
+        for ((start, end) in edges) {
+            if (colors[start] != colors[end]) {
+                set validColoring w/= start <- true;
+                set validColoring w/= end <- true;
+            }
+        }
+
+        for (vertex in IndexRange(validColoring))
+        {
+            if (validColoring[vertex] == false)
+            {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+
+
+    operation WeakColoringEqualityOracleOr_Nbit(c0 : Qubit[], c1 : Qubit[], targets : Qubit[]) : Unit is Adj+Ctl {
+      for ((q0, q1) in Zip(c0, c1)) {
+            // compute XOR of q0 and q1 in place (storing it in q1)
+            CNOT(q0, q1);
+        }
+
+        // if all XORs are 0, the bit strings are equal
+        for (target in targets)
+        {
+            (ControlledOnInt(0, X))(c1, target);
+
+            // Flip target to get negation
+            X(target);
+        }
+        
+        // uncompute
+        for ((q0, q1) in Zip(c0, c1)) {
+            CNOT(q0, q1);
+        }
+    }
+
+
+    // Task 2.2. Oracle for verifying weak coloring
+    // Inputs:
+    //      1) The number of vertices in the graph V (V ≤ 6).
+    //      2) An array of E tuples of integers, representing the edges of the graph (E ≤ 12).
+    //         Each tuple gives the indices of the start and the end vertices of the edge.
+    //         The vertices are indexed 0 through V - 1.
+    //      3) An array of 2V qubits colorsRegister that encodes the color assignments.
+    //      4) A qubit in an arbitrary state |y⟩ (target qubit).
+    //
+    // Goal: Transform state |x, y⟩ into state |x, y ⊕ f(x)⟩ (⊕ is addition modulo 2),
+    //       where f(x) = 1 if the given weak coloring is valid and 0 otherwise.
+    //       Leave the query register in the same state it started in.
+    //
+    // Each color in colorsRegister is represented as a 2-bit integer in little-endian format.
+    // See task 1.3 for a more detailed description of color assignments.
+    operation WeakColoringOracle (V : Int, edges : (Int, Int)[], colorsRegister : Qubit[], target : Qubit) : Unit is Adj+Ctl {
+        let nEdges = Length(edges);
+        using (conflicts = Qubit[V]) {
+            for (i in 0 .. nEdges-1) {
+                let (start, end) = edges[i];
+                // Check that endpoints of the edge have different colors:
+                // apply ColorEqualityOracle_Nbit_Reference oracle; if the colors are the same the result will be 1, indicating a conflict
+                WeakColoringEqualityOracleOr_Nbit(colorsRegister[start * 2 .. start * 2 + 1], 
+                                                   colorsRegister[end * 2 .. end * 2 + 1], conflicts[start .. end]);
+            }
+
+            // If there are no conflicts (all qubits are in 0 state), the vertex coloring is valid
+            (ControlledOnInt(0, X))(conflicts, target);
+
+            for (i in 0 .. nEdges-1) {
+                let (start, end) = edges[i];
+                // Check that endpoints of the edge have different colors:
+                // apply ColorEqualityOracle_Nbit_Reference oracle; if the colors are the same the result will be 1, indicating a conflict
+                Adjoint WeakColoringEqualityOracleOr_Nbit(colorsRegister[start * 2 .. start * 2 + 1], 
+                                                           colorsRegister[end * 2 .. end * 2 + 1], conflicts[start .. end]);
+            }
+        }  
     }
 }

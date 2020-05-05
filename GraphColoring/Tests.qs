@@ -165,6 +165,19 @@ namespace Quantum.Kata.GraphColoring {
     }
 
 
+    operation T24_IsWeakColoringValid_Test () : Unit {
+        let testCases = ExampleGraphs();
+        
+        let (V0, edges0) = testCases[0];
+        Fact(IsVertexColoringValid(V0, edges0, [0, 0, 0]) == true, 
+             $"Weak coloring [0, 0, 0] judged incorrect for graph V = {V0}, edges = {edges0}");
+        
+        let (V1, edges1) = testCases[1];
+        Fact(IsVertexColoringValid(V1, edges1, [0, 2, 1, 0]) == true, 
+             $"Weak coloring [0, 2, 1, 0] judged correct for graph V = {V1}, edges = {edges1}");
+    }
+
+
     operation T21_IsVertexColoringValid_Test () : Unit {
         let testCases = ExampleGraphs();
 
@@ -215,7 +228,7 @@ namespace Quantum.Kata.GraphColoring {
     }
 
 
-    operation AssertOracleRecognizesColoring (V : Int, edges : (Int, Int)[], oracle : ((Int, (Int, Int)[], Qubit[], Qubit) => Unit)) : Unit {
+    operation AssertOracleRecognizesColoring (V : Int, edges : (Int, Int)[], classicalOracle : ((Int, (Int, Int)[], Int[]) -> Bool), oracle : ((Int, (Int, Int)[], Qubit[], Qubit) => Unit)) : Unit {
         // Message($"Testing V = {V}, edges = {edges}");
         let N = 2 * V;
         using ((coloringRegister, target) = (Qubit[N], Qubit())) {
@@ -233,7 +246,7 @@ namespace Quantum.Kata.GraphColoring {
                 oracle(V, edges, coloringRegister, target);
 
                 // Check that the oracle result matches the classical result
-                let val = IsVertexColoringValid_Reference(V, edges, coloring);
+                let val = classicalOracle(V, edges, coloring);
                 // Message($"bitmask = {binary}, coloring = {coloring} - expected answer = {val}");
                 AssertQubit(val ? One | Zero, target);
                 Reset(target);
@@ -248,10 +261,9 @@ namespace Quantum.Kata.GraphColoring {
 
     operation T22_VertexColoringOracle_Test () : Unit {
         for ((V, edges) in Most(ExampleGraphs())) {
-            AssertOracleRecognizesColoring(V, edges, VertexColoringOracle);
+            AssertOracleRecognizesColoring(V, edges, IsVertexColoringValid, VertexColoringOracle);
         }
     }
-
 
     operation T23_GroversAlgorithm_Test () : Unit {
         for ((V, edges) in ExampleGraphs()) {
@@ -260,6 +272,12 @@ namespace Quantum.Kata.GraphColoring {
             Fact(IsVertexColoringValid_Reference(V, edges, coloring), 
                  $"Got incorrect coloring {coloring}");
             Message($"Got correct coloring {coloring}");
+        }
+    }
+
+    operation  T24_WeakColoringOracle_Test () :  Unit {
+        for ((V, edges) in Most(ExampleGraphs())) {
+            AssertOracleRecognizesColoring(V, edges, IsWeakColoringValid, WeakColoringOracle);
         }
     }
 }
