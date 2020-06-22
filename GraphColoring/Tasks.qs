@@ -243,6 +243,39 @@ namespace Quantum.Kata.GraphColoring {
     }
 
 
+function GetConnectedEdgesForAGivenVertex(vertex : Int, edges : (Int, Int)[]) : Int[]
+    {
+        mutable connectedEdges = new Int[0]; 
+        mutable index = 0;
+        for (i in 0 .. Length(edges)-1) {
+            let (start, end) = edges[i];
+            if (start == vertex or end == vertex)
+            {
+                set connectedEdges w/= index <- i; 
+                set index += 1;
+            }
+        }
+        return connectedEdges;
+    }
+
+
+    operation VertexSatisfiesWeakColoring(edgeConflicts : Qubit[], edgeList: Int[], target : Qubit) : Unit is Adj+Ctl
+    {
+        if (Length(edgeList) > 1) {
+            for (i in 1 .. Length(edgeList) - 1)
+            {
+                // Check if at least one connected edge does not have a conflict
+                CCNOT(edgeConflicts[i-1], edgeConflicts[i], edgeConflicts[i]);
+            }
+        }
+        
+        // If last edge doesn't have a conflict, flip target
+        let lastIndex = edgeList[Length(edgeList) - 1];
+        X(edgeConflicts[lastIndex]);
+        CNOT(edgeConflicts[lastIndex], target);
+    }
+
+
     // Task 2.2. Oracle for verifying weak coloring
     // Inputs:
     //      1) The number of vertices in the graph V (V ≤ 6).
@@ -260,25 +293,51 @@ namespace Quantum.Kata.GraphColoring {
     // See task 1.3 for a more detailed description of color assignments.
     operation WeakColoringOracle (V : Int, edges : (Int, Int)[], colorsRegister : Qubit[], target : Qubit) : Unit is Adj+Ctl {
         let nEdges = Length(edges);
-        using (conflicts = Qubit[V]) {
+        using (edgeConflicts = Qubit[nEdges]) {
             for (i in 0 .. nEdges-1) {
                 let (start, end) = edges[i];
                 // Check that endpoints of the edge have different colors:
                 // apply ColorEqualityOracle_Nbit_Reference oracle; if the colors are the same the result will be 1, indicating a conflict
-                WeakColoringEqualityOracleOr_Nbit(colorsRegister[start * 2 .. start * 2 + 1], 
-                                                   colorsRegister[end * 2 .. end * 2 + 1], conflicts[start .. end]);
+                ColorEqualityOracle_Nbit(colorsRegister[start * 2 .. start * 2 + 1], 
+                                                   colorsRegister[end * 2 .. end * 2 + 1], edgeConflicts[i]);
             }
 
-            // If there are no conflicts (all qubits are in 0 state), the vertex coloring is valid
-            (ControlledOnInt(0, X))(conflicts, target);
+            using (noConflicts = Qubit[V]) {
+                for (v in 0 .. V-1)
+                {
+                    let connectedEdges = GetConnectedEdgesForAGivenVertex(v, edges);
+                    if (Length(connectedEdges) == 0) {
+                        // Isolated vertex
+                        X(noConflicts[v]);
+                    }
+                    else {
+                        VertexSatisfiesWeakColoring(edgeConflicts, connectedEdges, noConflicts[v]);
+                    }
+                }
+
+                // If all vertices are connected to at least one edge with a different colored vertex (all qubits are in 1 state), the weak coloring is valid
+                (ControlledOnInt(1, X))(noConflicts, target);
+
+                for (v in 0 .. V-1)
+                {
+                    let connectedEdges = GetConnectedEdgesForAGivenVertex(v, edges);
+                    if (Length(connectedEdges) == 0) {
+                        // Isolated vertex
+                        X(noConflicts[v]);
+                    }
+                    else {
+                        VertexSatisfiesWeakColoring(edgeConflicts, connectedEdges, noConflicts[v]);
+                    }
+                }
+            }
 
             for (i in 0 .. nEdges-1) {
                 let (start, end) = edges[i];
                 // Check that endpoints of the edge have different colors:
                 // apply ColorEqualityOracle_Nbit_Reference oracle; if the colors are the same the result will be 1, indicating a conflict
-                Adjoint WeakColoringEqualityOracleOr_Nbit(colorsRegister[start * 2 .. start * 2 + 1], 
-                                                           colorsRegister[end * 2 .. end * 2 + 1], conflicts[start .. end]);
+                Adjoint ColorEqualityOracle_Nbit(colorsRegister[start * 2 .. start * 2 + 1], 
+                                                           colorsRegister[end * 2 .. end * 2 + 1], edgeConflicts[i]);
             }
-        }  
+        }
     }
 }
