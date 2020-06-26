@@ -155,7 +155,8 @@ namespace Quantum.Kata.GraphColoring {
     //  - 6-vertex graph from https://en.wikipedia.org/wiki/File:3-coloringEx.svg
     function ExampleGraphs () : (Int, (Int, Int)[])[] {
         return [(3, new (Int, Int)[0]),
-            (4, [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)])];
+                (4, [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]),
+                (5, [(4, 0), (2, 1), (3, 1), (3, 2)])];
         // Graphs with 6+ vertices can take several minutes to be processed; 
         // in the interest of keeping test runtime reasonable we're limiting most of the testing to graphs with 5 vertices or fewer.
     }
@@ -260,19 +261,44 @@ namespace Quantum.Kata.GraphColoring {
 
 
     //////////////////////////////////////////////////////////////////
-    // Part II. Vertex coloring problem
+    // Part III. Weak coloring problem
     //////////////////////////////////////////////////////////////////
 
     operation T24_IsWeakColoringValid_Test () : Unit {
         let testCases = ExampleGraphs();
         
         let (V0, edges0) = testCases[0];
-        Fact(IsVertexColoringValid(V0, edges0, [0, 0, 0]) == true, 
+        Fact(IsWeakColoringValid(V0, edges0, [0, 0, 0]) == false, 
              $"Weak coloring [0, 0, 0] judged incorrect for graph V = {V0}, edges = {edges0}");
         
         let (V1, edges1) = testCases[1];
-        Fact(IsVertexColoringValid(V1, edges1, [0, 2, 1, 0]) == true, 
+        Fact(IsWeakColoringValid(V1, edges1, [0, 2, 1, 0]) == true, 
              $"Weak coloring [0, 2, 1, 0] judged correct for graph V = {V1}, edges = {edges1}");
+
+        let (V2, edges2) = testCases[2];
+        // note that in this task the coloring does not have to be limited to numbers 0 .. 3, like in the next task
+        Fact(IsWeakColoringValid(V2, edges2, [0, 1, 2, 3, 4]) == true, 
+             $"Coloring [0, 1, 2, 3, 4] judged incorrect for graph V = {V2}, edges = {edges2}");
+        Fact(IsWeakColoringValid(V2, edges2, [0, 2, 1, 0, 3]) == true, 
+             $"Coloring [0, 2, 1, 0, 3] judged incorrect for graph V = {V2}, edges = {edges2}");
+        Fact(IsWeakColoringValid(V2, edges2, [1, 0, 1, 2, 1]) == false, 
+             $"Coloring [1, 0, 1, 2, 1] judged correct for graph V = {V2}, edges = {edges2}");
+        Fact(IsWeakColoringValid(V2, edges2, [0, 0, 0, 0, 0]) == true, 
+             $"Coloring [0, 0, 0, 0, 0] judged correct for graph V = {V2}, edges = {edges2}");
+
+        let (V3, edges3) = testCases[3];
+        Fact(IsWeakColoringValid(V3, edges3, [0, 1, 0, 2, 1]) == true, 
+             $"Coloring [0, 1, 0, 2, 1] judged incorrect for graph V = {V3}, edges = {edges3}");
+        Fact(IsWeakColoringValid(V3, edges3, [0, 2, 0, 1, 3]) == true, 
+             $"Coloring [0, 2, 0, 1, 3] judged incorrect for graph V = {V3}, edges = {edges3}");
+        Fact(IsWeakColoringValid(V3, edges3, [0, 1, 0, 1, 2]) == false, 
+             $"Coloring [0, 1, 0, 1, 2] judged correct for graph V = {V3}, edges = {edges3}");
+
+        let (V4, edges4) = testCases[4];
+        Fact(IsWeakColoringValid(V4, edges4, [1, 2, 3, 1, 2]) == true, 
+             $"Coloring [1, 2, 3, 1, 2] judged incorrect for graph V = {V4}, edges = {edges4}");
+        Fact(IsWeakColoringValid(V4, edges4, [1, 2, 3, 4, 1]) == false, 
+             $"Coloring [1, 2, 3, 4, 1] judged correct for graph V = {V4}, edges = {edges4}");
     }
 
     operation  T24_WeakColoringOracle_Test () :  Unit {

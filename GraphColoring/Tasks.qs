@@ -7,6 +7,7 @@ namespace Quantum.Kata.GraphColoring {
     open Microsoft.Quantum.Intrinsic;
     open Microsoft.Quantum.Canon;
     open Microsoft.Quantum.Arrays;
+    open Microsoft.Quantum.Logical;
 
     //////////////////////////////////////////////////////////////////
     // Welcome!
@@ -86,34 +87,12 @@ namespace Quantum.Kata.GraphColoring {
     // Task 1.5. N-bit color equality oracle (no extra qubits)
     // This task is the same as task 1.4, but in this task you are NOT allowed to allocate extra qubits.
     operation ColorEqualityOracle_Nbit (c0 : Qubit[], c1 : Qubit[], target : Qubit) : Unit is Adj+Ctl {
-        // ...
-    }
-
-
-   // Task 1.6. N-bit color equality oracle (no extra qubits)
-    // Inputs:
-    //      1) an array of 2 qubits in an arbitrary state |c₀⟩ representing the first color,
-    //      1) an array of 2 qubits in an arbitrary state |c₁⟩ representing the second color,
-    //      3) a qubit in an arbitrary state |y⟩ (target qubit).
-    // Goal: Transform state |c₀⟩|c₁⟩|y⟩ into state |c₀⟩|c₁⟩|y ⊕ f(c₀, c₁)⟩ (⊕ is addition modulo 2),
-    //       where f(x) = 1 if c₀ and c₁ are in the same state, and 0 otherwise.
-    //       Leave the query register in the same state it started in.
-    // In this task you are allowed to allocate extra qubits.
-    operation ColorEqualityOracleOr_Nbit (c0 : Qubit[], c1 : Qubit[], targets : Qubit[]) : Unit is Adj+Ctl {
         for ((q0, q1) in Zip(c0, c1)) {
             // compute XOR of q0 and q1 in place (storing it in q1)
             CNOT(q0, q1);
         }
-
         // if all XORs are 0, the bit strings are equal
-        for (target in targets)
-        {
-            (ControlledOnInt(0, X))(c1, target);
-
-            // Flip target to get negation
-            X(target);
-        }
-        
+        (ControlledOnInt(0, X))(c1, target);
         // uncompute
         for ((q0, q1) in Zip(c0, c1)) {
             CNOT(q0, q1);
@@ -243,16 +222,17 @@ namespace Quantum.Kata.GraphColoring {
     }
 
 
-function GetConnectedEdgesForAGivenVertex(vertex : Int, edges : (Int, Int)[]) : Int[]
+    function GetConnectedEdgesForAGivenVertex(vertex : Int, edges : (Int, Int)[]) : Int[]
     {
         mutable connectedEdges = new Int[0]; 
-        mutable index = 0;
         for (i in 0 .. Length(edges)-1) {
             let (start, end) = edges[i];
             if (start == vertex or end == vertex)
             {
-                set connectedEdges w/= index <- i; 
-                set index += 1;
+                if (not Any(EqualI(_, i), connectedEdges))
+                {
+                    set connectedEdges += [i]; 
+                }
             }
         }
         return connectedEdges;
@@ -261,18 +241,8 @@ function GetConnectedEdgesForAGivenVertex(vertex : Int, edges : (Int, Int)[]) : 
 
     operation VertexSatisfiesWeakColoring(edgeConflicts : Qubit[], edgeList: Int[], target : Qubit) : Unit is Adj+Ctl
     {
-        if (Length(edgeList) > 1) {
-            for (i in 1 .. Length(edgeList) - 1)
-            {
-                // Check if at least one connected edge does not have a conflict
-                CCNOT(edgeConflicts[i-1], edgeConflicts[i], edgeConflicts[i]);
-            }
-        }
-        
-        // If last edge doesn't have a conflict, flip target
-        let lastIndex = edgeList[Length(edgeList) - 1];
-        X(edgeConflicts[lastIndex]);
-        CNOT(edgeConflicts[lastIndex], target);
+        Controlled X(Subarray(edgeList, edgeConflicts), target);
+        X(target);
     }
 
 
